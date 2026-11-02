@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+dist/
+firmware/.pio/
+firmware/meshcore/.pio/
+firmware/loader/.pio/
+*.log
+*.bak
+.env

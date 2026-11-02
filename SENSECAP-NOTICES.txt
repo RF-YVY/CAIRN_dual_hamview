@@ -1,0 +1,30 @@
+CAIRN Dual + HamView — SenseCAP Indicator distribution
+
+This is an independent CAIRN-inspired UI implementation. It is not the original
+CAIRN firmware and does not claim complete CAIRN feature parity. The repository
+was originally populated with CAIRN documentation; those inherited documents
+remain reference material for the upstream project, not this build's support list.
+
+Firmware source: firmware/
+Meshtastic base: https://github.com/meshtastic/firmware/tree/08cd97e
+Meshtastic device-ui base: 776ab044345fcd41c4d9eda0eb86c9ad2206b2e1
+MeshCore base: 81dbae592ffad40b4212bc0b37e82b38da08f4bc
+  https://github.com/meshcore-dev/MeshCore
+RP2040 companion: official meshtastic/indicator_rp2040 v2.1, unmodified
+  https://github.com/meshtastic/indicator_rp2040/tree/v2.1
+
+Meshtastic and the RP2040 companion are GPL-3.0 projects. MeshCore is MIT-licensed;
+its full notice is in licenses/MeshCore-license.txt. Retain their copyright and
+license notices. LICENSE, firmware/LICENSE,
+firmware/lib/device-ui/LICENSE and licenses/indicator-rp2040-LICENSE.txt are
+provided. Dependency licenses remain with their source packages; exact dependency
+URLs and revisions are recorded in the PlatformIO configuration files.
+
+The Montserrat clock font is covered by the SIL Open Font License in
+firmware/meshcore/src/fonts/Montserrat-OFL.txt. Other inherited documentation
+font licenses remain in the existing licenses/ and docs/ trees.
+
+The browser installer uses ESP Web Tools (Apache-2.0), loaded from its pinned
+10.1.1 npm distribution. https://github.com/esphome/esp-web-tools
+The installer does not configure Wi-Fi through Improv; configure networking on
+the device. No authorizations, device backups or credentials are included.
