@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Install CAIRN-inspired Meshtastic and MeshCore firmware with HamView on a SenseCAP Indicator.">
+  <meta name="theme-color" content="#090611">
+  <title>CAIRN Dual + HamView · SenseCAP installer</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.1.1/dist/web/install-button.js?module"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="top"><a class="brand" href="./"><span class="mark">C</span> CAIRN <span>DUAL + HAMVIEW</span></a><a href="https://github.com/RF-YVY/CAIRN_dual_hamview">Source ↗</a></header>
+  <main>
+    <section class="hero">
+      <div><p class="eyebrow">SENSECAP INDICATOR / US 915 / PREVIEW 0.1.0</p><h1>Two meshes.<br><span>One SenseCAP.</span></h1><p class="intro">Meshtastic and MeshCore, with a CAIRN-inspired touchscreen and HamView alerts in both. Switch protocols with a quick reboot.</p><div class="pills"><span>Fresh device identities</span><span>Local / UTC clock</span><span>SD files + maps</span></div></div>
+      <div class="device" aria-label="Both firmwares remain in flash; one runs at a time"><div class="device-head"><span>SENSECAP</span><span>DUAL READY</span></div><div class="device-clock">--:--</div><div class="slots"><div><i></i><strong>MESHTASTIC</strong><small>Resident firmware</small></div><div><i></i><strong>MESHCORE</strong><small>Resident firmware</small></div></div><div class="device-foot">HamView <span>↔ Reboot to switch</span></div></div>
+    </section>
+    <section class="install-grid" aria-labelledby="install-title">
+      <article class="panel installer"><p class="eyebrow">INSTALL</p><h2 id="install-title">Start with a clean device.</h2><p>Use a desktop Chrome or Edge browser and a USB data cable. Select the ESP32’s <strong>CH340 serial port</strong>, not the RP2040 port.</p><div class="notice"><strong>Fresh installation replaces ESP32 settings, identities, keys and message history.</strong><span>Back up anything you want to retain first. The SD card is not formatted.</span></div>
+        <label class="confirm"><input type="checkbox" id="confirm"><span>I have a <strong>SenseCAP Indicator for Meshtastic</strong> with ESP32-S3, 8 MB flash, 8 MB PSRAM and SX1262 LoRa, and I understand this is a fresh installation.</span></label>
+        <esp-web-install-button manifest="manifest.json" id="installer"><button slot="activate" id="flash" disabled>Connect SenseCAP &amp; install <span>→</span></button><p slot="unsupported" class="notice">This browser does not support Web Serial. Open this page in desktop Chrome or Edge.</p><p slot="not-allowed" class="notice">Open this installer over HTTPS or on localhost.</p></esp-web-install-button>
+        <p id="install-hint" class="muted" role="status">Confirm the hardware and fresh-install notice to enable installation.</p><p id="component-status" class="muted" role="status"></p><div class="downloads"><a href="firmware/sensecap-dual-0.1.0-preview.factory.bin" download>Download factory image ↓</a><a href="firmware/SHA256SUMS.txt">SHA256 checksums ↗</a></div>
+      </article>
+      <aside class="panel next"><p class="eyebrow">ON YOUR DEVICE</p><h2>Make it yours.</h2><ol><li><strong>Set up Meshtastic.</strong><span>Choose your region and configure your node and channels.</span></li><li><strong>Open Modes.</strong><span>Switch to MeshCore. Both firmwares keep separate settings in internal flash; switching does not require SD backups.</span></li><li><strong>Set up MeshCore radio.</strong><span>Transmission starts disabled. Enter your frequency, bandwidth, spreading factor and scope under Radio, then save. This preview supports 902–928 MHz.</span></li><li><strong>Add HamView and time.</strong><span>Enter your own Wi-Fi and HamAlert credentials. Tap the clock for UTC/local time and time-zone options.</span></li></ol></aside>
+    </section>
+    <section class="panel companion"><div><p class="eyebrow">RP2040 COMPANION / SD CARD</p><h2>Need the storage bridge update?</h2><p>The browser installer programs the ESP32 only. SD support requires the RP2040 companion firmware with protocol v2; v2.1 is provided below. Use the documented BOOTSEL procedure and copy the UF2 file to the RP2040 drive.</p><p>Never use an ESP32 image on the RP2040, or a UF2 file in the ESP32 installer.</p></div><div class="companion-links"><a class="secondary" href="firmware/indicator-rp2040-v2.1.uf2" download>Download official RP2040 v2.1 ↓</a><a href="https://github.com/meshtastic/indicator_rp2040#installation">RP2040 installation guide ↗</a></div></section>
+    <section class="facts"><div><h3>No prefilled owner data</h3><p>No saved owner names, node keys, contacts, Wi-Fi credentials, HamAlert logins or coordinates are included. Keys and identities are created on your device.</p></div><div><h3>Two full firmwares</h3><p>One protocol runs at a time. Modes selects the other firmware and restarts. Your two profiles have independent internal filesystems.</p></div><div><h3>Preview release</h3><p>Core functionality has been checked on a SenseCAP. The clean factory-install path has been verified offline, not flashed onto a second blank device. This is an independent implementation; complete CAIRN parity is not claimed.</p></div></section>
+    <details class="panel"><summary>Command-line installation and update notes</summary><p>Install <code>esptool</code>, download the factory image, close other serial applications and run:</p><pre><code>python -m pip install esptool
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.0-preview.factory.bin</code></pre><p>This is a fresh install, not a settings-preserving update. Ordinary OTA updates are disabled to protect the other firmware slot. See the repository for the layout, build source, limitations and recovery information.</p><a href="https://github.com/RF-YVY/CAIRN_dual_hamview#installation">Read the installation manual ↗</a></details>
+  </main>
+  <footer><span>CAIRN-inspired. Independent firmware project.</span><div><a href="https://github.com/RF-YVY/CAIRN_dual_hamview">Source &amp; license</a><a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a><a href="firmware/release.json">Release details</a></div></footer>
+</body>
+</html>

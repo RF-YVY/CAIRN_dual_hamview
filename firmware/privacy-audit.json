@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "filesScanned": 3044,
+  "personalMarkerMatches": 0,
+  "knownDeviceIdentityKeyMatches": 0,
+  "userSettingsArea": "erased",
+  "meshtasticFiles": [],
+  "meshcoreFiles": [
+    "/meshcore.profile"
+  ],
+  "largestFileBytes": 8388608,
+  "scope": "Current publishable tree and release images; existing Git history is not rewritten."
+}
