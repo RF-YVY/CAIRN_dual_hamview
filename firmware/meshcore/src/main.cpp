@@ -70,10 +70,11 @@ void setup()
                   prefs->default_scope_name);
     interfaces.addInterface(InterfaceType::USB, &usb);
     interfaces.addInterface(InterfaceType::HardwareSerial, &localInterface);
+    // The TCP companion needs the network stack initialized before opening its server.
+    coreUiStartNetwork();
     if (!CairnCompanion::begin(interfaces, meshCore.getNodePrefs()->node_name))
         Serial.println("Bluetooth companion unavailable");
     meshCore.startInterface(interfaces);
-    coreUiStartNetwork();
     board.onBootComplete();
     ready = true;
     coreUiSetReady(true, "MeshCore ready");
