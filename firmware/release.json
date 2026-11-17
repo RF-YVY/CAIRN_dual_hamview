@@ -1,10 +1,10 @@
 {
-  "version": "0.1.0-preview",
+  "version": "0.1.1-preview",
   "board": "SenseCAP Indicator for Meshtastic (ESP32-S3, 8 MB flash, 8 MB PSRAM, SX1262)",
   "defaultProtocol": "Meshtastic",
   "meshcoreTransmit": "Disabled until radio settings are saved on device",
   "userConfiguration": "Blank NVS; empty Meshtastic volume; MeshCore profile marker only",
-  "diagnosticPathsNormalized": 1,
+  "diagnosticPathsNormalized": 0,
   "meshtasticBase": "08cd97e",
   "meshcoreBase": "81dbae592ffad40b4212bc0b37e82b38da08f4bc",
   "rp2040Source": "https://github.com/meshtastic/indicator_rp2040/releases/tag/v2.1",
@@ -23,11 +23,11 @@
     },
     "meshcore.bin": {
       "bytes": 2187472,
-      "sha256": "067c9b969f638c8e290e1a308f7b98083559f048a18a276ab087a667e7b16dcd"
+      "sha256": "49a644e578d398e04fa5b0c50dd42f945de4488773763fda60f9b8124f3d1483"
     },
     "meshtastic-empty.littlefs.bin": {
       "bytes": 1572864,
-      "sha256": "dff566c74eb068d9732859cf0529f70f8af006265d98ea7a511179278b1735a0"
+      "sha256": "4eb23fabe4b60d6f211d7fe8416099a02c3c37e303aa75c8c1c98ebde7a18414"
     },
     "meshtastic.bin": {
       "bytes": 3950416,
@@ -41,9 +41,9 @@
       "bytes": 3072,
       "sha256": "d166cad8991555407fb44939c195d8088984c2e2a2295dfcd61af08a0c69cfa7"
     },
-    "sensecap-dual-0.1.0-preview.factory.bin": {
+    "sensecap-dual-0.1.1-preview.factory.bin": {
       "bytes": 8388608,
-      "sha256": "dfef2897fd7afc3b174cc4cbe534b1b0732e75fe6e9e3a0ed0c3d3f20e035751"
+      "sha256": "5e197aa1a0003d784809925dc6339642109f09367cccfb8b617bac9c34e86ab1"
     }
   }
 }
