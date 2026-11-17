@@ -3,6 +3,7 @@
 #include "CairnInterfaces.h"
 #include "CairnJournal.h"
 #include "CairnLocalInterface.h"
+#include "CairnObserver.h"
 #include "CairnRadioTools.h"
 #include "CairnSerial.h"
 #include "IndicatorFiles.h"
@@ -22,7 +23,20 @@ namespace
 DataStore store(SPIFFS, rtc_clock);
 StdRNG rng;
 SimpleMeshTables tables;
-MyMesh meshCore(radio_driver, rng, rtc_clock, tables, store);
+class ObservedMesh : public MyMesh
+{
+  public:
+    using MyMesh::MyMesh;
+
+  protected:
+    void logRxRaw(float snr, float rssi, const uint8_t *raw, int length) override
+    {
+        if (length > 0)
+            CairnObserver::capture(snr, rssi, raw, length);
+        MyMesh::logRxRaw(snr, rssi, raw, length);
+    }
+};
+ObservedMesh meshCore(radio_driver, rng, rtc_clock, tables, store);
 CairnSerial usb;
 CairnInterfaces interfaces;
 bool ready = false;
@@ -72,6 +86,10 @@ void setup()
     interfaces.addInterface(InterfaceType::HardwareSerial, &localInterface);
     // The TCP companion needs the network stack initialized before opening its server.
     coreUiStartNetwork();
+    char observerRadio[96];
+    snprintf(observerRadio, sizeof(observerRadio), "%.3f,%.1f,%u,%u", prefs->freq, prefs->bw, prefs->sf, prefs->cr);
+    if (!CairnObserver::begin(meshCore.self_id.pub_key, prefs->node_name, observerRadio))
+        Serial.println("Observer unavailable");
     if (!CairnCompanion::begin(interfaces, meshCore.getNodePrefs()->node_name))
         Serial.println("Bluetooth companion unavailable");
     meshCore.startInterface(interfaces);

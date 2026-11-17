@@ -5,6 +5,7 @@
 #include "CairnJournal.h"
 #include "CairnLocalInterface.h"
 #include "CairnMap.h"
+#include "CairnObserver.h"
 #include "CairnRadioTools.h"
 #include "IndicatorFiles.h"
 #include "MyMesh.h"
@@ -23,6 +24,7 @@
 #include <Utils.h>
 #include <WiFi.h>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <ctime>
@@ -67,6 +69,7 @@ enum class Page {
     ExportHistory,
     Map,
     MapSettings,
+    Observer,
     Count
 };
 
@@ -134,6 +137,7 @@ bool mapPositioned = false;
 lv_obj_t *loginField = nullptr, *channelNameField = nullptr, *channelKeyField = nullptr, *channelSlot = nullptr;
 char nodeStatus[160] = {};
 uint32_t renderedRevision = 0;
+std::atomic<unsigned> wifiDisconnectReason{0};
 struct NetworkSettings {
     char ssid[33] = {};
     char password[64] = {};
@@ -422,7 +426,7 @@ void refresh(lv_timer_t *)
         if (WiFi.status() == WL_CONNECTED)
             lv_label_set_text_fmt(runtimeStatus, "Connected: %s\n%s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
         else
-            lv_label_set_text(runtimeStatus, "Wi-Fi disconnected");
+            lv_label_set_text_fmt(runtimeStatus, "Wi-Fi disconnected (reason %u)", wifiDisconnectReason.load());
     }
     if (activePage == Page::WifiCompanion && runtimeStatus)
         lv_label_set_text_fmt(runtimeStatus, "%s\n%s : 5000",
@@ -430,6 +434,11 @@ void refresh(lv_timer_t *)
                               : CairnCompanion::wifiEnabled() ? "TCP companion enabled"
                                                               : "TCP companion disabled",
                               WiFi.localIP().toString().c_str());
+    if (activePage == Page::Observer && runtimeStatus) {
+        char status[240];
+        CairnObserver::status(status, sizeof(status));
+        lv_label_set_text(runtimeStatus, status);
+    }
     if (activePage == Page::ExportHistory && runtimeStatus)
         lv_label_set_text(runtimeStatus, CairnArchive::status());
 }
@@ -599,7 +608,7 @@ void showPage(Page page)
                             "Position",  "Settings",        "Hardware",  "Appearance",  "System",        "Files",
                             "File",      "Conversation",    "History",   "Node",        "Channel",       "Radio protocol",
                             "Bluetooth", "Wi-Fi companion", "Edit text", "Delete file", "New text file", "Spectrum / waterfall",
-                            "Tools",     "Export history",  "Maps",      "Map source"};
+                            "Tools",     "Export history",  "Maps",      "Map source",  "Observer"};
     static_assert(sizeof(titles) / sizeof(titles[0]) == unsigned(Page::Count), "Page titles out of sync");
     lv_obj_t *title = label(body, titles[static_cast<int>(page)], TEAL);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
@@ -915,7 +924,31 @@ void showPage(Page page)
         label(body, "Wi-Fi supplies HamView alerts and clock synchronization.");
         button(body, "Bluetooth companion", [](lv_event_t *) { showPage(Page::Bluetooth); });
         button(body, "Wi-Fi companion", [](lv_event_t *) { showPage(Page::WifiCompanion); });
+        button(body, "Observer / analyzer", [](lv_event_t *) { showPage(Page::Observer); });
         viewStatus = label(body, "");
+    } else if (page == Page::Observer) {
+        runtimeStatus = label(body, "", TEAL);
+        label(body, "Upload heard packets and signal measurements to the public Mississippi Mesh analyzer.");
+        label(body, "mqtt.msmesh.org : 1883 / plain MQTT");
+        label(body, "Enable observer uploads");
+        auto *enabled = lv_switch_create(body);
+        if (CairnObserver::enabled())
+            lv_obj_add_state(enabled, LV_STATE_CHECKED);
+        auto *region = field(body, "Three-letter region (MEM, GTR, JAN...)", CairnObserver::region(), 3);
+        lv_textarea_set_accepted_chars(region, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+        lv_obj_set_user_data(enabled, region);
+        button(
+            body, "Save observer settings",
+            [](lv_event_t *event) {
+                auto *choice = static_cast<lv_obj_t *>(lv_event_get_user_data(event));
+                auto *region = static_cast<lv_obj_t *>(lv_obj_get_user_data(choice));
+                const bool ok = CairnObserver::save(lv_obj_has_state(choice, LV_STATE_CHECKED), lv_textarea_get_text(region));
+                closeKeyboard();
+                lv_label_set_text(viewStatus, ok ? "Observer settings saved." : "Enter a three-letter region and try again.");
+            },
+            enabled);
+        viewStatus = label(body, "Messaging continues. Uploads pause outside MeshCore. Counts reset on restart.");
+        label(body, "A full queue drops packets. No MQTT messages are sent back onto LoRa.");
     } else if (page == Page::WifiCompanion) {
         runtimeStatus = label(body, "", TEAL);
         label(body, "Enable only on a trusted LAN. Connected clients can change node settings.");
@@ -1157,6 +1190,8 @@ void showPage(Page page)
         auto *files = button(body, "Storage", navigation, reinterpret_cast<void *>(static_cast<uintptr_t>(Page::Storage)));
         lv_obj_set_width(files, LV_PCT(100));
     } else if (page == Page::Tools) {
+        auto *observer = button(body, "Observer / analyzer", [](lv_event_t *) { showPage(Page::Observer); });
+        lv_obj_set_width(observer, LV_PCT(100));
         const char *names[] = {"Spectrum / waterfall", "Files",    "Export messages",
                                "Connections",          "Position", "System / node name"};
         const Page routes[] = {Page::Spectrum, Page::Files, Page::ExportHistory, Page::Network, Page::Map, Page::System};
@@ -1575,6 +1610,15 @@ bool coreUiBegin(MyMesh &core, DataStore &store)
 
 void coreUiStartNetwork()
 {
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+        if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+            wifiDisconnectReason = info.wifi_sta_disconnected.reason;
+            Serial.printf("Wi-Fi disconnected: reason %u\n", wifiDisconnectReason.load());
+        } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+            wifiDisconnectReason = 0;
+            Serial.printf("Wi-Fi connected: %s\n", WiFi.localIP().toString().c_str());
+        }
+    });
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
@@ -1724,6 +1768,7 @@ bool coreUiSetTime(unsigned epoch)
     if (settimeofday(&tv, nullptr) != 0)
         return false;
     rtc_clock.setCurrentTime(epoch);
+    CairnClock::markTimeSynchronized();
     return true;
 }
 

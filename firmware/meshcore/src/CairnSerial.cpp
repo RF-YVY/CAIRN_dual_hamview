@@ -1,5 +1,6 @@
 #include "CairnSerial.h"
 #include "CairnCoreUI.h"
+#include "CairnObserver.h"
 #include "UptimeClock.h"
 #include "graphics/CairnBoot.h"
 #include "graphics/CairnClock.h"
@@ -389,6 +390,16 @@ void CairnSerial::handle(size_t length)
         if (size == 4) {
             resultLength = coreUiClockPreview(get32(body), reinterpret_cast<char *>(tx + 6), 4096);
             ok = resultLength > 0 && resultLength < 4096;
+        }
+        break;
+    case 28:
+        if (size == 0 || (size == 4 && body[0] <= 1)) {
+            char region[4] = {};
+            if (size)
+                memcpy(region, body + 1, 3);
+            ok = !size || CairnObserver::save(body[0], region);
+            if (ok)
+                resultLength = CairnObserver::diagnostics(reinterpret_cast<char *>(tx + 6), 4096);
         }
         break;
     case 23: {

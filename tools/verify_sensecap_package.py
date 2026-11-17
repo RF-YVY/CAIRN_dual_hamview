@@ -30,6 +30,7 @@ for offset, sequence in ((0xE000, 3), (0xF000, 2)):
 assert len((FILES / "meshtastic.bin").read_bytes()) <= 0x3E0000
 assert len((FILES / "meshcore.bin").read_bytes()) <= 0x250000
 assert b"cairn_setup" in (FILES / "meshcore.bin").read_bytes(), "Public radio setup gate missing"
+assert b"cairn_observer" in (FILES / "meshcore.bin").read_bytes(), "Observer support missing"
 prefs = ROOT / "firmware/userPrefs.jsonc"
 values = json.loads("\n".join(line for line in prefs.read_text().splitlines() if not line.lstrip().startswith("//")))
 assert set(values) <= {"USERPREFS_RINGTONE_RTTTL", "USERPREFS_TZ_STRING"}, "Unexpected prefilled factory preference"

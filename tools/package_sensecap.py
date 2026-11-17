@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zlib
 
-VERSION = "0.1.1-preview"
+VERSION = "0.1.2-preview"
 SIZE = 0x800000
 LAYOUT = [("nvs", 1, 2, 0x9000, 0x5000), ("otadata", 1, 0, 0xE000, 0x2000),
           ("app0", 0, 0x10, 0x10000, 0x3E0000), ("meshcore", 0, 0x11, 0x3F0000, 0x250000),

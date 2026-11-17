@@ -28,3 +28,5 @@ The browser installer uses ESP Web Tools (Apache-2.0), loaded from its pinned
 10.1.1 npm distribution. https://github.com/esphome/esp-web-tools
 The installer does not configure Wi-Fi through Improv; configure networking on
 the device. No authorizations, device backups or credentials are included.
+
+PubSubClient 2.8: Nicholas O'Leary, MIT; see licenses/sensecap-dependencies/PubSubClient-MIT.txt.

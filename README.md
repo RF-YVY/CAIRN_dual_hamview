@@ -2,7 +2,7 @@
 
 Two complete firmwares in internal flash: **Meshtastic** and **MeshCore**, each with a CAIRN-inspired touchscreen and HamView. **Modes** changes protocol with a reboot; routine switching does not back up or restore SD images.
 
-**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.1-preview)**
+**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.2-preview)**
 
 This is an independent implementation, not the original CAIRN firmware. Full CAIRN feature parity is not claimed. The inherited `docs/` tree and [upstream README](reference/CAIRN-upstream-README.md) describe the upstream CAIRN project; they are not this build's support matrix.
 
@@ -29,7 +29,7 @@ Download the factory image from Releases, close other serial applications, and r
 
 ```sh
 python -m pip install esptool
-python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.1-preview.factory.bin
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.2-preview.factory.bin
 ```
 
 The full 8 MB factory image contains both applications, fresh filesystems and erased user settings storage. Checking or unchecking a browser's optional erase prompt does not turn this image into a preserving update. Generic OTA replacement is disabled because the other application slot holds the other protocol.
@@ -41,9 +41,12 @@ The full 8 MB factory image contains both applications, fresh filesystems and er
 - HamView DX alerts in both profiles, using the recipient's credentials.
 - MeshCore chats, channels, contacts, discovery, repeater login, quick-reply drafts and retained message history.
 - MeshCore Bluetooth companion access with a random first-boot pairing PIN; optional trusted-LAN TCP companion on port 5000, disabled by default.
+- Optional MeshCore observer uploads to Mississippi Mesh, with region selection, connection status and upload/queue/drop counters.
 - MeshCore maps with visible-tile SD caching, receive-only spectrum/waterfall, SD text editing and JSON Lines history export (up to 128 retained records).
 
 Maps need Wi-Fi for uncached tiles; there is no bulk offline-area download. Spectrum sweeps pause mesh reception/sending until stopped. The optional Wi-Fi companion permits full node control, so enable it only on a trusted network.
+
+Observer setup: open **Tools → Observer / analyzer**, choose your own three-letter region and enable uploads. Wi-Fi and clock synchronization are required. Received on-air packets, RSSI/SNR, node name and public identity are published to `mqtt.msmesh.org:1883`; this endpoint uses plain MQTT. Private keys and credentials are excluded. Messaging continues while uploads run in a separate task. The queue holds 16 packets, with drops counted; uploads use MQTT QoS 0, so the counter records successful writes rather than analyzer acknowledgements. Uploads stop when MeshCore is inactive. No MQTT traffic is retransmitted over LoRa.
 
 ## Privacy and validation
 

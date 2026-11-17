@@ -1,5 +1,6 @@
 Import("env")
 env.Append(LINKFLAGS=["-Wl,--wrap=esp_ota_get_next_update_partition"])
+env.Append(LINKFLAGS=["-Wl,--wrap=dns_clear_cache"])
 
 
 def select_resident_image(target, source, env):
