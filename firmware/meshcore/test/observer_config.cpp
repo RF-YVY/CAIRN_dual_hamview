@@ -58,7 +58,13 @@ constexpr bool test_region_optional_for_custom_path()
 constexpr bool test_reject_invalid_publish_paths()
 {
     auto c = example();
-    const char *bad[] = {"mesh/#/{type}", "mesh/+/{type}", "mesh/{unknown}/{type}", "mesh/{type", "mesh/status", "mesh/}/{type}", "{pubkey}/{pubkey}/{pubkey}/{pubkey}/{pubkey}/{pubkey}/{type}"};
+    const char *bad[] = {"mesh/#/{type}",
+                         "mesh/+/{type}",
+                         "mesh/{unknown}/{type}",
+                         "mesh/{type",
+                         "mesh/status",
+                         "mesh/}/{type}",
+                         "{pubkey}/{pubkey}/{pubkey}/{pubkey}/{pubkey}/{pubkey}/{type}"};
     for (const char *path : bad) {
         text(c.topic, path);
         if (validConfiguration(c))
