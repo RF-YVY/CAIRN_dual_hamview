@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zlib
 
-VERSION = "0.1.2-preview"
+VERSION = "0.1.3-preview"
 SIZE = 0x800000
 LAYOUT = [("nvs", 1, 2, 0x9000, 0x5000), ("otadata", 1, 0, 0xE000, 0x2000),
           ("app0", 0, 0x10, 0x10000, 0x3E0000), ("meshcore", 0, 0x11, 0x3F0000, 0x250000),
@@ -132,7 +132,8 @@ def main():
     files = {p.name: {"bytes": p.stat().st_size, "sha256": sha(p.read_bytes())}
              for p in sorted(output.iterdir()) if p.is_file() and p.suffix in (".bin", ".uf2")}
     provenance = dict(version=VERSION, board="SenseCAP Indicator for Meshtastic (ESP32-S3, 8 MB flash, 8 MB PSRAM, SX1262)",
-                      defaultProtocol="Meshtastic", meshcoreTransmit="Disabled until radio settings are saved on device",
+                      defaultProtocol="Meshtastic", observerDefaults="Off; broker, region and login blank; editable publish-topic template",
+                      meshcoreTransmit="Disabled until radio settings are saved on device",
                       userConfiguration="Blank NVS; empty Meshtastic volume; MeshCore profile marker only",
                       diagnosticPathsNormalized=mt_paths + mc_paths,
                       meshtasticBase="08cd97e", meshcoreBase="81dbae592ffad40b4212bc0b37e82b38da08f4bc",

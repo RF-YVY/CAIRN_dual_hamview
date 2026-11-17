@@ -1,13 +1,13 @@
 {
   "name": "CAIRN Dual + HamView \u2014 SenseCAP Indicator",
-  "version": "0.1.2-preview",
+  "version": "0.1.3-preview",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "firmware/sensecap-dual-0.1.2-preview.factory.bin",
+          "path": "firmware/sensecap-dual-0.1.3-preview.factory.bin",
           "offset": 0
         }
       ]

@@ -138,6 +138,9 @@ lv_obj_t *loginField = nullptr, *channelNameField = nullptr, *channelKeyField = 
 char nodeStatus[160] = {};
 uint32_t renderedRevision = 0;
 std::atomic<unsigned> wifiDisconnectReason{0};
+struct ObserverFields {
+    lv_obj_t *enabled, *tls, *host, *port, *region, *topic, *username, *password;
+};
 struct NetworkSettings {
     char ssid[33] = {};
     char password[64] = {};
@@ -928,27 +931,62 @@ void showPage(Page page)
         viewStatus = label(body, "");
     } else if (page == Page::Observer) {
         runtimeStatus = label(body, "", TEAL);
-        label(body, "Upload heard packets and signal measurements to the public Mississippi Mesh analyzer.");
-        label(body, "mqtt.msmesh.org : 1883 / plain MQTT");
+        label(body, "Upload heard packets and signal measurements to your chosen MQTT observer service.");
+        const auto config = CairnObserver::configuration();
+        auto *fields = new ObserverFields{};
         label(body, "Enable observer uploads");
-        auto *enabled = lv_switch_create(body);
-        if (CairnObserver::enabled())
-            lv_obj_add_state(enabled, LV_STATE_CHECKED);
-        auto *region = field(body, "Three-letter region (MEM, GTR, JAN...)", CairnObserver::region(), 3);
-        lv_textarea_set_accepted_chars(region, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-        lv_obj_set_user_data(enabled, region);
-        button(
+        fields->enabled = lv_switch_create(body);
+        if (config.enabled)
+            lv_obj_add_state(fields->enabled, LV_STATE_CHECKED);
+        fields->host = field(body, "Broker hostname (no URL or path)", config.host, 95);
+        char port[8];
+        snprintf(port, sizeof(port), "%u", config.port);
+        fields->port = field(body, "Broker port", port, 5);
+        lv_textarea_set_accepted_chars(fields->port, "0123456789");
+        label(body, "Verify server with TLS");
+        fields->tls = lv_switch_create(body);
+        if (config.tls)
+            lv_obj_add_state(fields->tls, LV_STATE_CHECKED);
+        label(body, "MQTT TCP/TLS only; WebSocket URLs are not supported. Common ports: 1883 plain, 8883 TLS.");
+        fields->region = field(body, "Region (when used in the topic)", config.region, 16);
+        lv_textarea_set_accepted_chars(fields->region, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+        fields->topic = field(body, "Publish topic template", config.topic, 191);
+        label(body,
+              "Use {region}, {pubkey} and {type}. {type} is required and becomes packets or status. Paths are case-sensitive.");
+        fields->username = field(body, "MQTT username (optional)", config.username, 127);
+        fields->password = field(body, "MQTT password (optional)", config.password, 511);
+        lv_textarea_set_password_mode(fields->password, true);
+        auto *save = button(
             body, "Save observer settings",
             [](lv_event_t *event) {
-                auto *choice = static_cast<lv_obj_t *>(lv_event_get_user_data(event));
-                auto *region = static_cast<lv_obj_t *>(lv_obj_get_user_data(choice));
-                const bool ok = CairnObserver::save(lv_obj_has_state(choice, LV_STATE_CHECKED), lv_textarea_get_text(region));
+                auto *fields = static_cast<ObserverFields *>(lv_event_get_user_data(event));
+                CairnObserver::Configuration value;
+                value.enabled = lv_obj_has_state(fields->enabled, LV_STATE_CHECKED);
+                value.tls = lv_obj_has_state(fields->tls, LV_STATE_CHECKED);
+                char *end;
+                const char *portText = lv_textarea_get_text(fields->port);
+                const unsigned long port = strtoul(portText, &end, 10);
+                if (value.enabled && (!portText[0] || *end || !port || port > 65535)) {
+                    lv_label_set_text(viewStatus, "Enter a port from 1 to 65535.");
+                    return;
+                }
+                value.port = port <= 65535 ? port : 0;
+                strlcpy(value.host, lv_textarea_get_text(fields->host), sizeof(value.host));
+                strlcpy(value.region, lv_textarea_get_text(fields->region), sizeof(value.region));
+                strlcpy(value.topic, lv_textarea_get_text(fields->topic), sizeof(value.topic));
+                strlcpy(value.username, lv_textarea_get_text(fields->username), sizeof(value.username));
+                strlcpy(value.password, lv_textarea_get_text(fields->password), sizeof(value.password));
+                const bool ok = CairnObserver::save(value);
                 closeKeyboard();
-                lv_label_set_text(viewStatus, ok ? "Observer settings saved." : "Enter a three-letter region and try again.");
+                lv_label_set_text(viewStatus, ok ? "Observer settings saved."
+                                                 : "Check host, port, region and topic. The topic must include {type}.");
             },
-            enabled);
-        viewStatus = label(body, "Messaging continues. Uploads pause outside MeshCore. Counts reset on restart.");
-        label(body, "A full queue drops packets. No MQTT messages are sent back onto LoRa.");
+            fields);
+        lv_obj_add_event_cb(
+            save, [](lv_event_t *event) { delete static_cast<ObserverFields *>(lv_event_get_user_data(event)); }, LV_EVENT_DELETE,
+            fields);
+        viewStatus = label(body, "Settings apply without restarting. Counts reset on restart.");
+        label(body, "Uploads run only in MeshCore. A full queue drops packets. MQTT cannot transmit onto LoRa.");
     } else if (page == Page::WifiCompanion) {
         runtimeStatus = label(body, "", TEAL);
         label(body, "Enable only on a trusted LAN. Connected clients can change node settings.");

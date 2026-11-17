@@ -3,6 +3,7 @@
 #include "graphics/CairnClock.h"
 #include "mesh/Throttle.h"
 #include <ArduinoJson.h>
+#include <NetworkClientSecure.h>
 #include <Packet.h>
 #include <Preferences.h>
 #include <PubSubClient.h>
@@ -15,15 +16,20 @@
 #include <freertos/task.h>
 #include <sys/time.h>
 
+extern const uint8_t observerCertificatesStart[] asm("_binary_x509_crt_bundle_start");
+extern const uint8_t observerCertificatesEnd[] asm("_binary_x509_crt_bundle_end");
+
 namespace CairnObserver
 {
 namespace
 {
-constexpr const char *HOST = "mqtt.msmesh.org";
-struct Settings {
-    uint8_t enabled = 0;
-    char region[4] = {};
-} settings;
+using Settings = Configuration;
+Settings settings;
+struct StoredSettings {
+    uint32_t magic;
+    Settings configuration;
+};
+constexpr uint32_t SETTINGS_MAGIC = 0x434F4232;
 struct Reception {
     uint32_t generation;
     timeval timestamp;
@@ -67,11 +73,6 @@ void hex(const uint8_t *bytes, size_t length, char *out)
     }
     out[2 * length] = 0;
 }
-bool validRegion(const char *value)
-{
-    return value && strlen(value) == 3 && isalpha(static_cast<unsigned char>(value[0])) &&
-           isalpha(static_cast<unsigned char>(value[1])) && isalpha(static_cast<unsigned char>(value[2]));
-}
 void load()
 {
     if (loaded)
@@ -79,11 +80,21 @@ void load()
     loaded = true;
     Preferences prefs;
     if (prefs.begin("cairn_observer", true)) {
-        Settings value;
-        if (prefs.getBytesLength("config") == sizeof(value) && prefs.getBytes("config", &value, sizeof(value)) == sizeof(value)) {
-            value.region[3] = 0;
-            if (value.enabled <= 1 && (!value.enabled || validRegion(value.region)))
-                settings = value;
+        StoredSettings value{};
+        const size_t size = prefs.getBytesLength("config");
+        if (size == sizeof(value) && prefs.getBytes("config", &value, sizeof(value)) == sizeof(value) &&
+            value.magic == SETTINGS_MAGIC && validConfiguration(value.configuration)) {
+            settings = value.configuration;
+        } else if (size == 5) {
+            uint8_t legacy[5]{};
+            if (prefs.getBytes("config", legacy, sizeof(legacy)) == sizeof(legacy) && legacy[0] <= 1 && legacy[4] == 0) {
+                Settings migrated;
+                migrated.enabled = legacy[0];
+                memcpy(migrated.region, legacy + 1, 3);
+                strlcpy(migrated.host, "mqtt.msmesh.org", sizeof(migrated.host));
+                if (validConfiguration(migrated))
+                    settings = migrated;
+            }
         }
         prefs.end();
     }
@@ -119,7 +130,7 @@ bool publishStatus(PubSubClient &mqtt, const char *topic)
     stamp(doc, now);
     doc["status"] = "online";
     doc["model"] = "SenseCAP Indicator";
-    doc["firmware_version"] = "CAIRN dual 0.1.2-preview";
+    doc["firmware_version"] = "CAIRN dual 0.1.3-preview";
     doc["client_version"] = "cairn-observer/1";
     doc["radio"] = radioName;
     doc["repeat"] = "off";
@@ -183,11 +194,14 @@ void worker(void *)
     WiFiClient transport;
     transport.setConnectionTimeout(1000);
     transport.setTimeout(1000);
+    NetworkClientSecure secure;
+    secure.setConnectionTimeout(1000);
+    secure.setHandshakeTimeout(8);
+    secure.setCACertBundle(observerCertificatesStart, observerCertificatesEnd - observerCertificatesStart);
     PubSubClient mqtt(transport);
-    mqtt.setServer(HOST, 1883);
     mqtt.setSocketTimeout(2);
     mqtt.setKeepAlive(30);
-    if (!mqtt.setBufferSize(2048)) {
+    if (!mqtt.setBufferSize(3072)) {
         state = Unavailable;
         vTaskDelete(nullptr);
         return;
@@ -195,7 +209,7 @@ void worker(void *)
     uint32_t version = 0, lastAttempt = 0, lastStatus = 0;
     bool attempted = false;
     Settings current;
-    char packetsTopic[110], statusTopic[110], clientId[90], will[640];
+    char packetsTopic[384], statusTopic[384], clientId[90], will[640];
     for (;;) {
         stackRemaining = uxTaskGetStackHighWaterMark(nullptr);
         if (version != generation.load()) {
@@ -208,19 +222,24 @@ void worker(void *)
             current = settings;
             version = generation.load();
             portEXIT_CRITICAL(&settingsLock);
-            snprintf(packetsTopic, sizeof(packetsTopic), "meshcore/%s/%s/packets", current.region, publicKey);
-            snprintf(statusTopic, sizeof(statusTopic), "meshcore/%s/%s/status", current.region, publicKey);
+            transport.stop();
+            secure.stop();
+            mqtt.setClient(current.tls ? static_cast<Client &>(secure) : static_cast<Client &>(transport));
+            mqtt.setServer(current.host, current.port);
+            formatTopic(current, publicKey, "packets", packetsTopic, sizeof(packetsTopic));
+            formatTopic(current, publicKey, "status", statusTopic, sizeof(statusTopic));
             snprintf(clientId, sizeof(clientId), "cairn-%s", publicKey);
             attempted = false;
         }
         accepting = false;
         if (!current.enabled)
             state = Off;
-        else if (!validRegion(current.region))
+        else if (!validConfiguration(current))
             state = NeedRegion;
         else if (WiFi.status() != WL_CONNECTED) {
             state = Wifi;
             transport.stop();
+            secure.stop();
         } else if (!CairnClock::timeSynchronized())
             state = Clock;
         else {
@@ -230,7 +249,9 @@ void worker(void *)
                 lastAttempt = Time::getMillis();
                 attempted = true;
                 offlineMessage(will, sizeof(will));
-                if (mqtt.connect(clientId, nullptr, nullptr, statusTopic, 0, true, will)) {
+                const bool authenticate = current.username[0] || current.password[0];
+                if (mqtt.connect(clientId, authenticate ? current.username : nullptr, authenticate ? current.password : nullptr,
+                                 statusTopic, 0, true, will)) {
                     lastError = 0;
                     publishStatus(mqtt, statusTopic);
                     lastStatus = Time::getMillis();
@@ -300,17 +321,28 @@ bool begin(const uint8_t *key, const char *name, const char *radio)
 }
 bool save(bool on, const char *code)
 {
-    load();
-    if ((on || (code && *code)) && !validRegion(code))
-        return false;
-    Settings value;
+    Settings value = configuration();
     value.enabled = on;
-    for (unsigned i = 0; code && i < 3 && code[i]; ++i)
-        value.region[i] = toupper(static_cast<unsigned char>(code[i]));
+    strlcpy(value.region, code ? code : "", sizeof(value.region));
+    return save(value);
+}
+Configuration configuration()
+{
+    load();
+    return settings;
+}
+bool save(const Configuration &value)
+{
+    load();
+    if (!validConfiguration(value))
+        return false;
     Preferences prefs;
     if (!prefs.begin("cairn_observer", false))
         return false;
-    const bool ok = prefs.putBytes("config", &value, sizeof(value)) == sizeof(value);
+    StoredSettings stored{};
+    stored.magic = SETTINGS_MAGIC;
+    stored.configuration = value;
+    const bool ok = prefs.putBytes("config", &stored, sizeof(stored)) == sizeof(stored);
     prefs.end();
     if (ok) {
         accepting = false;
@@ -350,11 +382,11 @@ void status(char *out, unsigned capacity)
 {
     const char *labels[] = {"Observer off",
                             "Starting observer",
-                            "Choose a three-letter region",
+                            "Complete broker and topic settings",
                             "Waiting for Wi-Fi",
                             "Waiting for clock sync",
-                            "Connecting to Mississippi Mesh",
-                            "Connected to Mississippi Mesh",
+                            "Connecting to MQTT broker",
+                            "Connected to MQTT broker",
                             "Connection failed; retrying",
                             "Observer could not start"};
     snprintf(out, capacity, "%s\nUploaded: %u   Queued: %u\nDropped: %u   Connection code: %d", labels[state.load()],

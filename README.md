@@ -2,7 +2,7 @@
 
 Two complete firmwares in internal flash: **Meshtastic** and **MeshCore**, each with a CAIRN-inspired touchscreen and HamView. **Modes** changes protocol with a reboot; routine switching does not back up or restore SD images.
 
-**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.2-preview)**
+**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.3-preview)**
 
 This is an independent implementation, not the original CAIRN firmware. Full CAIRN feature parity is not claimed. The inherited `docs/` tree and [upstream README](reference/CAIRN-upstream-README.md) describe the upstream CAIRN project; they are not this build's support matrix.
 
@@ -29,7 +29,7 @@ Download the factory image from Releases, close other serial applications, and r
 
 ```sh
 python -m pip install esptool
-python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.2-preview.factory.bin
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.3-preview.factory.bin
 ```
 
 The full 8 MB factory image contains both applications, fresh filesystems and erased user settings storage. Checking or unchecking a browser's optional erase prompt does not turn this image into a preserving update. Generic OTA replacement is disabled because the other application slot holds the other protocol.
@@ -41,18 +41,24 @@ The full 8 MB factory image contains both applications, fresh filesystems and er
 - HamView DX alerts in both profiles, using the recipient's credentials.
 - MeshCore chats, channels, contacts, discovery, repeater login, quick-reply drafts and retained message history.
 - MeshCore Bluetooth companion access with a random first-boot pairing PIN; optional trusted-LAN TCP companion on port 5000, disabled by default.
-- Optional MeshCore observer uploads to Mississippi Mesh, with region selection, connection status and upload/queue/drop counters.
+- Optional MeshCore observer uploads to a configurable MQTT broker, with editable topics, optional login/TLS, connection status and upload/queue/drop counters.
 - MeshCore maps with visible-tile SD caching, receive-only spectrum/waterfall, SD text editing and JSON Lines history export (up to 128 retained records).
 
 Maps need Wi-Fi for uncached tiles; there is no bulk offline-area download. Spectrum sweeps pause mesh reception/sending until stopped. The optional Wi-Fi companion permits full node control, so enable it only on a trusted network.
 
-Observer setup: open **Tools → Observer / analyzer**, choose your own three-letter region and enable uploads. Wi-Fi and clock synchronization are required. Received on-air packets, RSSI/SNR, node name and public identity are published to `mqtt.msmesh.org:1883`; this endpoint uses plain MQTT. Private keys and credentials are excluded. Messaging continues while uploads run in a separate task. The queue holds 16 packets, with drops counted; uploads use MQTT QoS 0, so the counter records successful writes rather than analyzer acknowledgements. Uploads stop when MeshCore is inactive. No MQTT traffic is retransmitted over LoRa.
+Observer setup: open **Tools → Observer / analyzer** and enter the broker hostname (without a URL scheme or path), port, optional MQTT username/password, and TLS setting. Fresh installations start with uploads off, a blank broker and region, and no credentials. Use the host, port and authentication supplied by your analyzer or private broker. TLS verifies the server against the bundled public CA roots and requires a synchronized clock.
+
+The editable publish-topic template defaults to `meshcore/{region}/{pubkey}/{type}`. `{pubkey}` expands to the node's public key; `{type}` is required and expands to `packets` or `status`. `{region}` is optional; fill the region field when your template uses it. Regions can contain up to 16 letters, digits, underscores or hyphens. Paths and region codes are case-sensitive. For example, `my-network/site-1/{pubkey}/{type}` requires no region field. Wildcards, unknown placeholders, and oversized topics are rejected. Disabling remains possible with incomplete connection settings.
+
+The broker must accept LetsMesh-compatible observer packet/status JSON. Supported transports are MQTT over TCP and certificate-verified MQTT over TLS. WebSocket URLs, automatic signed-JWT generation/renewal, and custom/self-signed CA installation are not provided. As one optional example, Mississippi Mesh uses `mqtt.msmesh.org`, port `1883`, no login, and its own region codes; this is not prefilled for new users. Existing v0.1.2 observer settings migrate when using a matching app-only update.
+
+Received on-air packets, RSSI/SNR, node name and public identity go to the selected broker. Private keys and Wi-Fi credentials are excluded; MQTT credentials are used only for the broker connection and are excluded from published packet/status JSON. Messaging continues while uploads run in a separate task. The queue holds 16 packets, with drops counted; MQTT QoS 0 counts successful writes rather than analyzer acknowledgements. Uploads stop when MeshCore is inactive. No MQTT traffic is retransmitted over LoRa.
 
 ## Privacy and validation
 
 No saved owner names, node identities, private channel keys, contacts, messages, Wi-Fi credentials, HamAlert credentials, coordinates or Bluetooth bonds are distributed. The Meshtastic filesystem is empty; the MeshCore filesystem contains only `/meshcore.profile`. Both protocols create their identity/key material locally. One compiler diagnostic path was normalized without changing segment layout; the image checksum and SHA256 were regenerated and verified.
 
-Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. Report problems through Issues; do not upload private full-flash backups.
+Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. Custom broker login/TLS configuration in v0.1.3 has build and compile-time validation checks, but has not been hardware-tested. Report problems through Issues; do not upload private full-flash backups.
 
 ## Source and builds
 
