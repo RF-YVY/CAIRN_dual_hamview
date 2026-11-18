@@ -2,7 +2,7 @@
 
 Two complete firmwares in internal flash: **Meshtastic** and **MeshCore**, each with a CAIRN-inspired touchscreen and HamView. **Modes** changes protocol with a reboot; routine switching does not back up or restore SD images.
 
-**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.3-preview)**
+**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.4-preview)**
 
 This is an independent implementation, not the original CAIRN firmware. Full CAIRN feature parity is not claimed. The inherited `docs/` tree and [upstream README](reference/CAIRN-upstream-README.md) describe the upstream CAIRN project; they are not this build's support matrix.
 
@@ -29,10 +29,37 @@ Download the factory image from Releases, close other serial applications, and r
 
 ```sh
 python -m pip install esptool
-python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.3-preview.factory.bin
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.4-preview.factory.bin
 ```
 
 The full 8 MB factory image contains both applications, fresh filesystems and erased user settings storage. Checking or unchecking a browser's optional erase prompt does not turn this image into a preserving update. Generic OTA replacement is disabled because the other application slot holds the other protocol.
+
+## Standard setup and node names
+
+Select the mode you want to configure before connecting its client. Meshtastic and MeshCore keep independent names, identities and radio settings. Normal phone-app setup is supported; installing repeater firmware is not required for observer uploads.
+
+| Mode | On-device naming | Standard client setup |
+| --- | --- | --- |
+| Meshtastic | Gear/settings, then **User name** for short and long names; official client recommended for complete User settings | Meshtastic Android: **Settings > User**. Apple: **Settings > Device Configuration > User**. Web/USB and the Python CLI also support User configuration. |
+| MeshCore | **Settings > Node / system** (called **System** in earlier releases), or **Tools > System / node name** | Connect the MeshCore companion app over BLE, or a compatible web/desktop companion client over USB. Set its friendly name, radio parameters, channels and optional advertised location there. |
+
+Meshtastic CLI naming, while Meshtastic is active:
+
+```sh
+meshtastic --port YOUR_PORT --set-owner "My node" --set-owner-short "NODE"
+```
+
+The current inherited Meshtastic on-device name editor can clear the IsLicensed flag when it submits a name-only User update. Use the official app/CLI for naming when preserving licensed/other User flags; the full standard client API remains available.
+
+Use the official region/modem and channel settings appropriate to your network. This image still has the hardware/frequency limits listed above. MeshCore has one friendly node name; Meshtastic has separate short and long names. After a MeshCore rename, restart to refresh its BLE advertising name and observer label. The MeshCore firmware remains a Companion: observer uploading does not make it a repeater or room server. Its USB connection speaks the companion protocol rather than a bare serial repeater console.
+
+Setup references: [MeshCore companion setup](https://nodakmesh.org/meshcore/setup), [Meshtastic initial configuration](https://meshtastic.org/docs/getting-started/initial-config/), [Meshtastic User configuration](https://meshtastic.org/docs/configuration/radio/user/), and [Meshtastic configuration](https://meshtastic.org/docs/configuration/).
+
+### Observer map location
+
+An observer feed alone does not create a map pin. CoreScope's live map needs a node advertisement with a valid location. Configure the node's intended public coordinates in MeshCore, enable including that location in advertisements, then send an advertisement from the companion app after the observer connects. Do not use a precise location if you do not want it public.
+
+Starting with v0.1.4, the observer uploads its own successfully transmitted advertisements as `direction: tx`, without fabricated RSSI/SNR. Other outgoing messages are excluded. The signed advertisement controls the name, role and location; disabling advertised location remains respected. No extra radio broadcasts are generated. Another observer can also supply the node's advertisement. Reload the analyzer after its first location-bearing advertisement and check the map's region/role filters if the pin is hidden. The main Map can show a companion marker with an observer star and OBSERVER badge. Observer registration and the on-air Companion role are independent; the Live view can display the Companion role without that extra badge.
 
 ## Included behavior
 
@@ -52,13 +79,13 @@ The editable publish-topic template defaults to `meshcore/{region}/{pubkey}/{typ
 
 The broker must accept LetsMesh-compatible observer packet/status JSON. Supported transports are MQTT over TCP and certificate-verified MQTT over TLS. WebSocket URLs, automatic signed-JWT generation/renewal, and custom/self-signed CA installation are not provided. As one optional example, Mississippi Mesh uses `mqtt.msmesh.org`, port `1883`, no login, and its own region codes; this is not prefilled for new users. Existing v0.1.2 observer settings migrate when using a matching app-only update.
 
-Received on-air packets, RSSI/SNR, node name and public identity go to the selected broker. Private keys and Wi-Fi credentials are excluded; MQTT credentials are used only for the broker connection and are excluded from published packet/status JSON. Messaging continues while uploads run in a separate task. The queue holds 16 packets, with drops counted; MQTT QoS 0 counts successful writes rather than analyzer acknowledgements. Uploads stop when MeshCore is inactive. No MQTT traffic is retransmitted over LoRa.
+Received on-air packets, RSSI/SNR, node name and public identity go to the selected broker. Its own transmitted advertisements are also uploaded; transmitted packets do not claim reception measurements. Private keys and Wi-Fi credentials are excluded; MQTT credentials are used only for the broker connection and are excluded from published packet/status JSON. Messaging continues while uploads run in a separate task. The queue holds 16 packets, with drops counted; MQTT QoS 0 counts successful writes rather than analyzer acknowledgements. Uploads stop when MeshCore is inactive. No MQTT traffic is retransmitted over LoRa.
 
 ## Privacy and validation
 
 No saved owner names, node identities, private channel keys, contacts, messages, Wi-Fi credentials, HamAlert credentials, coordinates or Bluetooth bonds are distributed. The Meshtastic filesystem is empty; the MeshCore filesystem contains only `/meshcore.profile`. Both protocols create their identity/key material locally. One compiler diagnostic path was normalized without changing segment layout; the image checksum and SHA256 were regenerated and verified.
 
-Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. Custom broker login/TLS configuration in v0.1.3 has build and compile-time validation checks, but has not been hardware-tested. Report problems through Issues; do not upload private full-flash backups.
+Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. Custom broker login/TLS configuration and own-transmitted-advertisement reporting have build and compile-time validation checks, but have not been hardware-tested on the connected operator unit. Report problems through Issues; do not upload private full-flash backups.
 
 ## Source and builds
 

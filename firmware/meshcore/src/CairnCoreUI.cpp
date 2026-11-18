@@ -1043,9 +1043,9 @@ void showPage(Page page)
         lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
         lv_obj_set_style_pad_row(grid, 12, 0);
         lv_obj_set_style_pad_column(grid, 12, 0);
-        const char *names[] = {"LoRa", "Network", "GNSS", "Hardware", "Appearance", "System"};
+        const char *names[] = {"LoRa", "Network", "GNSS", "Hardware", "Appearance", "Node / system"};
         const char *details[] = {"Frequency / scope", "Wi-Fi / clock",   "Saved position",
-                                 "Display / storage", "Clock / display", "Firmware / status"};
+                                 "Display / storage", "Clock / display", "Name / firmware"};
         const Page routes[] = {Page::Radio, Page::Network, Page::Position, Page::Hardware, Page::Appearance, Page::System};
         const uint32_t accents[] = {0xFFE500, 0x00D7E6, 0x20FF60, 0xC15CFA, 0xFF35C4, 0xB6A9D2};
         for (unsigned i = 0; i < 6; ++i) {

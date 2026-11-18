@@ -1,7 +1,9 @@
 // Pins broker validation and topic expansion in CairnObserverConfig.h.
 // MQTT publishes cannot use subscription wildcards, and a truncated or unknown
 // placeholder must never route observations to an unintended topic. These
-// compile-time checks also protect the ability to disable an incomplete setup.
+// compile-time checks also protect disabling incomplete setup and ensure the TX
+// feed excludes private outgoing messages and other nodes' advertisements.
+#include "../src/CairnObserverAdvert.h"
 #include "../src/CairnObserverConfig.h"
 using namespace CairnObserver;
 
@@ -120,3 +122,14 @@ static_assert(test_reject_invalid_publish_paths(), "Invalid MQTT publish topics 
 static_assert(test_reject_bad_connection_settings(), "Invalid broker settings must not connect");
 static_assert(test_topic_capacity_and_disable(), "Topic bounds and disabling must remain safe");
 static_assert(test_long_credentials(), "Long broker credentials must fit without truncation");
+
+constexpr bool test_only_own_transmitted_adverts()
+{
+    uint8_t key[32]{1}, payload[101]{1};
+    if (!isOwnAdvertisement(4, payload, sizeof(payload), key) || isOwnAdvertisement(2, payload, sizeof(payload), key) ||
+        isOwnAdvertisement(4, payload, 100, key) || isOwnAdvertisement(4, nullptr, sizeof(payload), key))
+        return false;
+    payload[31] = 1;
+    return !isOwnAdvertisement(4, payload, sizeof(payload), key);
+}
+static_assert(test_only_own_transmitted_adverts(), "TX observations must exclude private messages and other nodes' adverts");

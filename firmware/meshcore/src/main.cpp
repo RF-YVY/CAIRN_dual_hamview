@@ -35,6 +35,12 @@ class ObservedMesh : public MyMesh
             CairnObserver::capture(snr, rssi, raw, length);
         MyMesh::logRxRaw(snr, rssi, raw, length);
     }
+    void logTx(mesh::Packet *packet, int length) override
+    {
+        if (packet)
+            CairnObserver::captureOwnAdvert(*packet);
+        MyMesh::logTx(packet, length);
+    }
 };
 ObservedMesh meshCore(radio_driver, rng, rtc_clock, tables, store);
 CairnSerial usb;

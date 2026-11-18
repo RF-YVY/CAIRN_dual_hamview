@@ -1,4 +1,5 @@
 #include "CairnObserver.h"
+#include "CairnObserverAdvert.h"
 #include "UptimeClock.h"
 #include "graphics/CairnClock.h"
 #include "mesh/Throttle.h"
@@ -34,6 +35,7 @@ struct Reception {
     uint32_t generation;
     timeval timestamp;
     uint8_t length;
+    bool transmitted;
     float snr;
     int16_t rssi;
     uint8_t raw[255];
@@ -50,6 +52,7 @@ StaticQueue_t queueState;
 uint8_t *queueStorage = nullptr;
 char *publishBuffer = nullptr;
 char origin[64], publicKey[65], radioName[96];
+uint8_t publicKeyBytes[32];
 bool loaded = false;
 StaticTask_t workerState;
 StackType_t *workerStack = nullptr;
@@ -130,7 +133,7 @@ bool publishStatus(PubSubClient &mqtt, const char *topic)
     stamp(doc, now);
     doc["status"] = "online";
     doc["model"] = "SenseCAP Indicator";
-    doc["firmware_version"] = "CAIRN dual 0.1.3-preview";
+    doc["firmware_version"] = "CAIRN dual 0.1.4-preview";
     doc["client_version"] = "cairn-observer/1";
     doc["radio"] = radioName;
     doc["repeat"] = "off";
@@ -148,7 +151,7 @@ void offlineMessage(char *out, unsigned capacity)
     doc["origin_id"] = publicKey;
     serializeJson(doc, out, capacity);
 }
-bool publishReception(PubSubClient &mqtt, const char *topic, const Reception &rx)
+bool publishPacket(PubSubClient &mqtt, const char *topic, const Reception &rx)
 {
     // Validate bounds before the pinned MeshCore parser copies path bytes.
     const unsigned pathOffset = (rx.raw[0] & 3) == 0 || (rx.raw[0] & 3) == 3 ? 5 : 1;
@@ -168,15 +171,17 @@ bool publishReception(PubSubClient &mqtt, const char *topic, const Reception &rx
     JsonDocument doc(&jsonMemory);
     stamp(doc, rx.timestamp);
     doc["type"] = "PACKET";
-    doc["direction"] = "rx";
+    doc["direction"] = rx.transmitted ? "tx" : "rx";
     doc["raw"] = raw;
     doc["hash"] = hash;
     doc["len"] = String(rx.length);
     doc["packet_type"] = String(packet.getPayloadType());
     doc["route"] = packet.isRouteDirect() ? "D" : "F";
     doc["payload_len"] = String(packet.payload_len);
-    doc["SNR"] = String(rx.snr, 1);
-    doc["RSSI"] = String(rx.rssi);
+    if (!rx.transmitted) {
+        doc["SNR"] = String(rx.snr, 1);
+        doc["RSSI"] = String(rx.rssi);
+    }
     if (packet.isRouteDirect() && packet.getPathHashCount()) {
         auto path = doc["path"].to<JsonArray>();
         for (unsigned i = 0; i < packet.getPathHashCount(); ++i) {
@@ -265,7 +270,7 @@ void worker(void *)
                 if (xQueuePeek(queue, &rx, 0) == pdTRUE) {
                     if (rx.generation != version)
                         xQueueReceive(queue, &rx, 0);
-                    else if (publishReception(mqtt, packetsTopic, rx)) {
+                    else if (publishPacket(mqtt, packetsTopic, rx)) {
                         xQueueReceive(queue, &rx, 0);
                         ++uploaded;
                     } else {
@@ -295,6 +300,7 @@ bool begin(const uint8_t *key, const char *name, const char *radio)
         return true;
     load();
     hex(key, 32, publicKey);
+    memcpy(publicKeyBytes, key, sizeof(publicKeyBytes));
     strlcpy(origin, name, sizeof(origin));
     strlcpy(radioName, radio, sizeof(radioName));
     queueStorage = static_cast<uint8_t *>(heap_caps_malloc(16 * sizeof(Reception), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
@@ -376,6 +382,23 @@ void capture(float snr, float rssi, const uint8_t *raw, size_t length)
     memcpy(rx.raw, raw, rx.length);
     ++received;
     if (xQueueSend(queue, &rx, 0) != pdTRUE)
+        ++dropped;
+}
+void captureOwnAdvert(const mesh::Packet &packet)
+{
+    if (!queue || !accepting.load() ||
+        !isOwnAdvertisement(packet.getPayloadType(), packet.payload, packet.payload_len, publicKeyBytes) ||
+        !mesh::Packet::isValidPathLen(packet.path_len) || packet.payload_len > sizeof(packet.payload))
+        return;
+    const unsigned length = packet.getRawLength();
+    if (length > 255)
+        return;
+    Reception tx{};
+    tx.generation = generation.load();
+    gettimeofday(&tx.timestamp, nullptr);
+    tx.transmitted = true;
+    tx.length = packet.writeTo(tx.raw);
+    if (tx.length != length || xQueueSend(queue, &tx, 0) != pdTRUE)
         ++dropped;
 }
 void status(char *out, unsigned capacity)
