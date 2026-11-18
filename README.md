@@ -43,13 +43,13 @@ Select the mode you want to configure before connecting its client. Meshtastic a
 | Meshtastic | Gear/settings, then **User name** for short and long names; official client recommended for complete User settings | Meshtastic Android: **Settings > User**. Apple: **Settings > Device Configuration > User**. Web/USB and the Python CLI also support User configuration. |
 | MeshCore | **Settings > Node / system** (called **System** in earlier releases), or **Tools > System / node name** | Connect the MeshCore companion app over BLE, or a compatible web/desktop companion client over USB. Set its friendly name, radio parameters, channels and optional advertised location there. |
 
-Meshtastic CLI naming, while Meshtastic is active:
+Meshtastic CLI naming for an ordinary unlicensed setup, while Meshtastic is active:
 
 ```sh
 meshtastic --port YOUR_PORT --set-owner "My node" --set-owner-short "NODE"
 ```
 
-The current inherited Meshtastic on-device name editor can clear the IsLicensed flag when it submits a name-only User update. Use the official app/CLI for naming when preserving licensed/other User flags; the full standard client API remains available.
+The current inherited Meshtastic on-device name editor can clear the IsLicensed flag when it submits a name-only User update. Use the official phone app to review and preserve licensed/other User flags when naming. CLI users must account for its licensed-mode semantics; the full standard client API remains available.
 
 Use the official region/modem and channel settings appropriate to your network. This image still has the hardware/frequency limits listed above. MeshCore has one friendly node name; Meshtastic has separate short and long names. After a MeshCore rename, restart to refresh its BLE advertising name and observer label. The MeshCore firmware remains a Companion: observer uploading does not make it a repeater or room server. Its USB connection speaks the companion protocol rather than a bare serial repeater console.
 
