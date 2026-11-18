@@ -2,7 +2,7 @@
 
 Two complete firmwares in internal flash: **Meshtastic** and **MeshCore**, each with a CAIRN-inspired touchscreen and HamView. **Modes** changes protocol with a reboot; routine switching does not back up or restore SD images.
 
-**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.4-preview)**
+**[Open the web flasher](https://rf-yvy.github.io/CAIRN_dual_hamview/)** · **[Download the release](https://github.com/RF-YVY/CAIRN_dual_hamview/releases/tag/sensecap-v0.1.5-preview)**
 
 This is an independent implementation, not the original CAIRN firmware. Full CAIRN feature parity is not claimed. The inherited `docs/` tree and [upstream README](reference/CAIRN-upstream-README.md) describe the upstream CAIRN project; they are not this build's support matrix.
 
@@ -29,7 +29,7 @@ Download the factory image from Releases, close other serial applications, and r
 
 ```sh
 python -m pip install esptool
-python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.4-preview.factory.bin
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 write-flash 0x0 sensecap-dual-0.1.5-preview.factory.bin
 ```
 
 The full 8 MB factory image contains both applications, fresh filesystems and erased user settings storage. Checking or unchecking a browser's optional erase prompt does not turn this image into a preserving update. Generic OTA replacement is disabled because the other application slot holds the other protocol.
@@ -57,7 +57,9 @@ Setup references: [MeshCore companion setup](https://nodakmesh.org/meshcore/setu
 
 ### Observer map location
 
-An observer feed alone does not create a map pin. CoreScope's live map needs a node advertisement with a valid location. Configure the node's intended public coordinates in MeshCore, enable including that location in advertisements, then send an advertisement from the companion app after the observer connects. Do not use a precise location if you do not want it public.
+An observer feed alone does not create a map pin. CoreScope's live map needs a node advertisement with a valid location. Configure the node's intended public coordinates in MeshCore, enable including that location in advertisements, then use **Tools > Announce identity > Announce now** (or the companion app) after the observer connects. Do not use a precise location if you do not want it public.
+
+The touchscreen announcement page offers **Nearby only** (zero-hop) or **Via repeaters** (flood using the saved scope and normal radio limits). Its public-location switch starts from the existing sharing preference and is saved only when you tap Announce now. A 15-second cooldown prevents rapid repeat taps. Announcements are signed MeshCore discovery packets; they do not receive a delivery acknowledgement, so a successful queue response does not prove another node heard them.
 
 Starting with v0.1.4, the observer uploads its own successfully transmitted advertisements as `direction: tx`, without fabricated RSSI/SNR. Other outgoing messages are excluded. The signed advertisement controls the name, role and location; disabling advertised location remains respected. No extra radio broadcasts are generated. Another observer can also supply the node's advertisement. Reload the analyzer after its first location-bearing advertisement and check the map's region/role filters if the pin is hidden. The main Map can show a companion marker with an observer star and OBSERVER badge. Observer registration and the on-air Companion role are independent; the Live view can display the Companion role without that extra badge.
 
@@ -85,7 +87,7 @@ Received on-air packets, RSSI/SNR, node name and public identity go to the selec
 
 No saved owner names, node identities, private channel keys, contacts, messages, Wi-Fi credentials, HamAlert credentials, coordinates or Bluetooth bonds are distributed. The Meshtastic filesystem is empty; the MeshCore filesystem contains only `/meshcore.profile`. Both protocols create their identity/key material locally. One compiler diagnostic path was normalized without changing segment layout; the image checksum and SHA256 were regenerated and verified.
 
-Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. Custom broker login/TLS configuration and own-transmitted-advertisement reporting have build and compile-time validation checks, but have not been hardware-tested on the connected operator unit. Report problems through Issues; do not upload private full-flash backups.
+Both applications were built and exercised on a SenseCAP during development. Resident switching was measured at about 1.7 seconds into MeshCore and 4.8 seconds back to Meshtastic. The public package has integrity, clean-filesystem, privacy and browser checks. **The clean factory-install path and its new radio-setup gate have not been tested on a second blank device**, so this is a preview release. No new power-failure or full feature regression suite was run for this package. The v0.1.5 announcement page was exercised on the connected operator unit: one scoped advert appeared in the analyzer with a valid signature, saved location and TX direction; the existing identity and configuration were preserved. Custom broker login/TLS configuration has build and compile-time validation checks but has not been hardware-tested. Remote repeater reception was not confirmed. Report problems through Issues; do not upload private full-flash backups.
 
 ## Source and builds
 

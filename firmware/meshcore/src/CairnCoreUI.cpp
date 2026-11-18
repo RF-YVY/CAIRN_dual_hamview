@@ -70,6 +70,7 @@ enum class Page {
     Map,
     MapSettings,
     Observer,
+    Announce,
     Count
 };
 
@@ -96,6 +97,9 @@ CairnShell shell;
 CairnDashboard dashboard;
 CairnDashboardState dashboardState;
 uint32_t lastSignalSample = 0;
+uint32_t lastAnnouncement = 0;
+bool announcementPending = false, hasAnnounced = false;
+lv_obj_t *advertReach = nullptr, *advertLocation = nullptr;
 void dashboardAction(CairnAction action);
 void navigation(lv_event_t *event);
 void showPage(Page page);
@@ -561,6 +565,72 @@ void savePosition(lv_event_t *)
     lv_label_set_text(viewStatus, "Position saved.");
 }
 
+void queueAnnouncement(bool flood)
+{
+    const uint8_t command[] = {7, uint8_t(flood)};
+    if (!localInterface.submit(
+            command, sizeof(command),
+            [](const uint8_t *reply, size_t length, void *) {
+                announcementPending = false;
+                const bool ok = length && reply[0] == 0;
+                if (ok) {
+                    hasAnnounced = true;
+                    lastAnnouncement = Time::getMillis();
+                }
+                if (activePage == Page::Announce && viewStatus)
+                    lv_label_set_text(viewStatus, ok ? "Announcement queued for radio transmission."
+                                                     : "The radio could not queue the announcement.");
+            },
+            nullptr)) {
+        announcementPending = false;
+        if (activePage == Page::Announce && viewStatus)
+            lv_label_set_text(viewStatus, "Radio command busy. Try again.");
+    }
+}
+
+void announceIdentity(lv_event_t *)
+{
+    if (!meshReady || !CairnRadioSetup::confirmed()) {
+        lv_label_set_text(viewStatus, "Save your radio settings before announcing.");
+        return;
+    }
+    if (announcementPending || (hasAnnounced && !Throttle::hasElapsed(lastAnnouncement, 15000))) {
+        lv_label_set_text(viewStatus, "Please wait before sending another announcement.");
+        return;
+    }
+    const bool flood = lv_dropdown_get_selected(advertReach) == 1;
+    const bool shareLocation = lv_obj_has_state(advertLocation, LV_STATE_CHECKED);
+    const auto *prefs = coreMesh->getNodePrefs();
+    if (shareLocation &&
+        (!std::isfinite(prefs->node_lat) || !std::isfinite(prefs->node_lon) || prefs->node_lat < -90 || prefs->node_lat > 90 ||
+         prefs->node_lon < -180 || prefs->node_lon > 180 || (!prefs->node_lat && !prefs->node_lon))) {
+        lv_label_set_text(viewStatus, "Set a valid saved position, or turn location sharing off.");
+        return;
+    }
+    announcementPending = true;
+    if (prefs->advert_loc_policy == uint8_t(shareLocation)) {
+        queueAnnouncement(flood);
+        return;
+    }
+    const uint8_t telemetry = prefs->telemetry_mode_base | (prefs->telemetry_mode_loc << 2) | (prefs->telemetry_mode_env << 4);
+    const uint8_t command[] = {38, prefs->manual_add_contacts, telemetry, uint8_t(shareLocation), prefs->multi_acks};
+    if (!localInterface.submit(
+            command, sizeof(command),
+            [](const uint8_t *reply, size_t length, void *context) {
+                if (length && reply[0] == 0)
+                    queueAnnouncement(reinterpret_cast<uintptr_t>(context) != 0);
+                else {
+                    announcementPending = false;
+                    if (activePage == Page::Announce && viewStatus)
+                        lv_label_set_text(viewStatus, "Could not save the location-sharing setting.");
+                }
+            },
+            reinterpret_cast<void *>(uintptr_t(flood)))) {
+        announcementPending = false;
+        lv_label_set_text(viewStatus, "Radio command busy. Try again.");
+    }
+}
+
 void displayPreference(lv_event_t *event)
 {
     if (lv_obj_check_type(lv_event_get_target_obj(event), &lv_slider_class)) {
@@ -611,7 +681,7 @@ void showPage(Page page)
                             "Position",  "Settings",        "Hardware",  "Appearance",  "System",        "Files",
                             "File",      "Conversation",    "History",   "Node",        "Channel",       "Radio protocol",
                             "Bluetooth", "Wi-Fi companion", "Edit text", "Delete file", "New text file", "Spectrum / waterfall",
-                            "Tools",     "Export history",  "Maps",      "Map source",  "Observer"};
+                            "Tools",     "Export history",  "Maps",      "Map source",  "Observer",      "Announce identity"};
     static_assert(sizeof(titles) / sizeof(titles[0]) == unsigned(Page::Count), "Page titles out of sync");
     lv_obj_t *title = label(body, titles[static_cast<int>(page)], TEAL);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
@@ -1227,7 +1297,27 @@ void showPage(Page page)
         lv_obj_add_event_cb(clockSwitch, displayPreference, LV_EVENT_VALUE_CHANGED, nullptr);
         auto *files = button(body, "Storage", navigation, reinterpret_cast<void *>(static_cast<uintptr_t>(Page::Storage)));
         lv_obj_set_width(files, LV_PCT(100));
+    } else if (page == Page::Announce) {
+        const auto *prefs = coreMesh->getNodePrefs();
+        label(body, prefs->node_name, TEAL);
+        label(body, "Announce your identity so nearby nodes and repeaters can discover this radio.");
+        advertReach = dropdown(body, "Announcement reach", "Nearby only\nVia repeaters", 1);
+        label(body, "Via repeaters uses your saved flood scope and normal radio limits.");
+        label(body, "Include saved location (public)");
+        advertLocation = lv_switch_create(body);
+        if (prefs->advert_loc_policy)
+            lv_obj_add_state(advertLocation, LV_STATE_CHECKED);
+        auto *send = button(body, "Announce now", announceIdentity);
+        lv_obj_set_width(send, LV_PCT(100));
+        if (!meshReady || !CairnRadioSetup::confirmed())
+            lv_obj_add_state(send, LV_STATE_DISABLED);
+        viewStatus = label(body, CairnRadioSetup::confirmed()
+                                     ? "Location choice is saved when you announce. No delivery acknowledgement is expected."
+                                     : "Save your radio settings before announcing.");
+        button(body, "Saved position", [](lv_event_t *) { showPage(Page::Position); });
     } else if (page == Page::Tools) {
+        auto *announce = button(body, "Announce identity", [](lv_event_t *) { showPage(Page::Announce); });
+        lv_obj_set_width(announce, LV_PCT(100));
         auto *observer = button(body, "Observer / analyzer", [](lv_event_t *) { showPage(Page::Observer); });
         lv_obj_set_width(observer, LV_PCT(100));
         const char *names[] = {"Spectrum / waterfall", "Files",    "Export messages",

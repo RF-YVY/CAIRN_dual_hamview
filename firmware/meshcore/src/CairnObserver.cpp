@@ -133,7 +133,7 @@ bool publishStatus(PubSubClient &mqtt, const char *topic)
     stamp(doc, now);
     doc["status"] = "online";
     doc["model"] = "SenseCAP Indicator";
-    doc["firmware_version"] = "CAIRN dual 0.1.4-preview";
+    doc["firmware_version"] = "CAIRN dual 0.1.5-preview";
     doc["client_version"] = "cairn-observer/1";
     doc["radio"] = radioName;
     doc["repeat"] = "off";
